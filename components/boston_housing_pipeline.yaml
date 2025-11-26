@@ -1,0 +1,302 @@
+# PIPELINE DEFINITION
+# Name: boston-housing
+# Inputs:
+#    dvc_path: str
+#    dvc_repo_url: str
+components:
+  comp-data-extraction:
+    executorLabel: exec-data-extraction
+    inputDefinitions:
+      parameters:
+        dvc_path:
+          parameterType: STRING
+        dvc_repo_url:
+          parameterType: STRING
+    outputDefinitions:
+      artifacts:
+        output_data:
+          artifactType:
+            schemaTitle: system.Dataset
+            schemaVersion: 0.0.1
+  comp-data-preprocessing:
+    executorLabel: exec-data-preprocessing
+    inputDefinitions:
+      artifacts:
+        raw_data:
+          artifactType:
+            schemaTitle: system.Dataset
+            schemaVersion: 0.0.1
+    outputDefinitions:
+      artifacts:
+        XtestOut:
+          artifactType:
+            schemaTitle: system.Dataset
+            schemaVersion: 0.0.1
+        XtrainOut:
+          artifactType:
+            schemaTitle: system.Dataset
+            schemaVersion: 0.0.1
+        YtestOut:
+          artifactType:
+            schemaTitle: system.Dataset
+            schemaVersion: 0.0.1
+        YtrainOut:
+          artifactType:
+            schemaTitle: system.Dataset
+            schemaVersion: 0.0.1
+  comp-model-evaluation:
+    executorLabel: exec-model-evaluation
+    inputDefinitions:
+      artifacts:
+        Xtest:
+          artifactType:
+            schemaTitle: system.Dataset
+            schemaVersion: 0.0.1
+        Ytest:
+          artifactType:
+            schemaTitle: system.Dataset
+            schemaVersion: 0.0.1
+        modelin:
+          artifactType:
+            schemaTitle: system.Model
+            schemaVersion: 0.0.1
+    outputDefinitions:
+      artifacts:
+        metricsOut:
+          artifactType:
+            schemaTitle: system.Metrics
+            schemaVersion: 0.0.1
+  comp-train-model:
+    executorLabel: exec-train-model
+    inputDefinitions:
+      artifacts:
+        Xtrain:
+          artifactType:
+            schemaTitle: system.Dataset
+            schemaVersion: 0.0.1
+        Ytrain:
+          artifactType:
+            schemaTitle: system.Dataset
+            schemaVersion: 0.0.1
+    outputDefinitions:
+      artifacts:
+        modelOut:
+          artifactType:
+            schemaTitle: system.Model
+            schemaVersion: 0.0.1
+deploymentSpec:
+  executors:
+    exec-data-extraction:
+      container:
+        args:
+        - --executor_input
+        - '{{$}}'
+        - --function_to_execute
+        - data_extraction
+        command:
+        - sh
+        - -c
+        - "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip ||\
+          \ python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1\
+          \ python3 -m pip install --quiet --no-warn-script-location 'kfp==2.14.6'\
+          \ '--no-deps' 'typing-extensions>=3.7.4,<5; python_version<\"3.9\"' && \"\
+          $0\" \"$@\"\n"
+        - sh
+        - -ec
+        - 'program_path=$(mktemp -d)
+
+
+          printf "%s" "$0" > "$program_path/ephemeral_component.py"
+
+          _KFP_RUNTIME=true python3 -m kfp.dsl.executor_main                         --component_module_path                         "$program_path/ephemeral_component.py"                         "$@"
+
+          '
+        - "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import\
+          \ *\n\ndef data_extraction(dvc_repo_url:str, dvc_path:str, output_data:Output[Dataset]):\
+          \ \n    import subprocess\n    cmd = [\"dvc\", \"get\", dvc_repo_url, dvc_path,\
+          \ \"-o\", output_data.path] \n    subprocess.run(cmd,check=True) \n\n"
+        image: python:3.10
+    exec-data-preprocessing:
+      container:
+        args:
+        - --executor_input
+        - '{{$}}'
+        - --function_to_execute
+        - data_preprocessing
+        command:
+        - sh
+        - -c
+        - "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip ||\
+          \ python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1\
+          \ python3 -m pip install --quiet --no-warn-script-location 'kfp==2.14.6'\
+          \ '--no-deps' 'typing-extensions>=3.7.4,<5; python_version<\"3.9\"' && \"\
+          $0\" \"$@\"\n"
+        - sh
+        - -ec
+        - 'program_path=$(mktemp -d)
+
+
+          printf "%s" "$0" > "$program_path/ephemeral_component.py"
+
+          _KFP_RUNTIME=true python3 -m kfp.dsl.executor_main                         --component_module_path                         "$program_path/ephemeral_component.py"                         "$@"
+
+          '
+        - "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import\
+          \ *\n\ndef data_preprocessing(raw_data:Input[Dataset], XtrainOut: Output[Dataset],\
+          \ XtestOut: Output[Dataset], YtrainOut:Output[Dataset], YtestOut:Output[Dataset]):\
+          \ \n    df = pd.read_csv(raw_data.path) \n    x = df.drop(\"MEDV\",axis=1)\
+          \ \n    y = df['MEDV']\n    x = StandardScaler().fit_transform(x) \n   \
+          \ Xtrain,Xtest, Ytrain, Ytest = train_test_split(x,y,test_size=0.2, random_state=42)\
+          \ \n    pd.DataFrame(Xtrain).to_csv(XtrainOut.path,index=False) \n    pd.DataFrame(Xtest).to_csv(XtestOut.path,index=False)\
+          \ \n    pd.DataFrame(Ytrain).to_csv(YtrainOut.path,index=False) \n    pd.DataFrame(Ytest).to_csv(YtestOut.path,index=False)\
+          \ \n\n"
+        image: python:3.10
+    exec-model-evaluation:
+      container:
+        args:
+        - --executor_input
+        - '{{$}}'
+        - --function_to_execute
+        - model_evaluation
+        command:
+        - sh
+        - -c
+        - "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip ||\
+          \ python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1\
+          \ python3 -m pip install --quiet --no-warn-script-location 'kfp==2.14.6'\
+          \ '--no-deps' 'typing-extensions>=3.7.4,<5; python_version<\"3.9\"' && \"\
+          $0\" \"$@\"\n"
+        - sh
+        - -ec
+        - 'program_path=$(mktemp -d)
+
+
+          printf "%s" "$0" > "$program_path/ephemeral_component.py"
+
+          _KFP_RUNTIME=true python3 -m kfp.dsl.executor_main                         --component_module_path                         "$program_path/ephemeral_component.py"                         "$@"
+
+          '
+        - "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import\
+          \ *\n\ndef model_evaluation(modelin:Input[Model], Xtest:Input[Dataset],\
+          \ Ytest:Input[Dataset], metricsOut:Output[Metrics]): \n    model = joblib.load(modelin.path)\n\
+          \    xtest = pd.read_csv(Xtest.path) \n    ytest = pd.read_csv(Ytest.path)\
+          \ \n    preds = model.predict(xtest) \n    mse = mean_squared_error(ytest,\
+          \ preds)\n    r2 = r2_score(ytest, preds) \n    metricsOut.log_metric(\"\
+          mse\", float(mse)) \n    metricsOut.log_metric(\"r2\", float(r2))  \n\n"
+        image: python:3.10
+    exec-train-model:
+      container:
+        args:
+        - --executor_input
+        - '{{$}}'
+        - --function_to_execute
+        - train_model
+        command:
+        - sh
+        - -c
+        - "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip ||\
+          \ python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1\
+          \ python3 -m pip install --quiet --no-warn-script-location 'kfp==2.14.6'\
+          \ '--no-deps' 'typing-extensions>=3.7.4,<5; python_version<\"3.9\"' && \"\
+          $0\" \"$@\"\n"
+        - sh
+        - -ec
+        - 'program_path=$(mktemp -d)
+
+
+          printf "%s" "$0" > "$program_path/ephemeral_component.py"
+
+          _KFP_RUNTIME=true python3 -m kfp.dsl.executor_main                         --component_module_path                         "$program_path/ephemeral_component.py"                         "$@"
+
+          '
+        - "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import\
+          \ *\n\ndef train_model(Xtrain:Input[Dataset], Ytrain:Input[Dataset], modelOut:Output[Model]):\
+          \ \n    xtrain = pd.read_csv(Xtrain.path) \n    ytrain = pd.read_csv(Ytrain.path)\
+          \ \n    model = RandomForestRegressor(n_estimators=200,random_state=42)\
+          \ \n    model.fit(xtrain, np.ravel(ytrain))\n    joblib.dump(model, modelOut.path)\n\
+          \n"
+        image: python:3.10
+pipelineInfo:
+  name: boston-housing
+root:
+  dag:
+    tasks:
+      data-extraction:
+        cachingOptions:
+          enableCache: true
+        componentRef:
+          name: comp-data-extraction
+        inputs:
+          parameters:
+            dvc_path:
+              componentInputParameter: dvc_path
+            dvc_repo_url:
+              componentInputParameter: dvc_repo_url
+        taskInfo:
+          name: data-extraction
+      data-preprocessing:
+        cachingOptions:
+          enableCache: true
+        componentRef:
+          name: comp-data-preprocessing
+        dependentTasks:
+        - data-extraction
+        inputs:
+          artifacts:
+            raw_data:
+              taskOutputArtifact:
+                outputArtifactKey: output_data
+                producerTask: data-extraction
+        taskInfo:
+          name: data-preprocessing
+      model-evaluation:
+        cachingOptions:
+          enableCache: true
+        componentRef:
+          name: comp-model-evaluation
+        dependentTasks:
+        - data-preprocessing
+        - train-model
+        inputs:
+          artifacts:
+            Xtest:
+              taskOutputArtifact:
+                outputArtifactKey: XtestOut
+                producerTask: data-preprocessing
+            Ytest:
+              taskOutputArtifact:
+                outputArtifactKey: YtestOut
+                producerTask: data-preprocessing
+            modelin:
+              taskOutputArtifact:
+                outputArtifactKey: modelOut
+                producerTask: train-model
+        taskInfo:
+          name: model-evaluation
+      train-model:
+        cachingOptions:
+          enableCache: true
+        componentRef:
+          name: comp-train-model
+        dependentTasks:
+        - data-preprocessing
+        inputs:
+          artifacts:
+            Xtrain:
+              taskOutputArtifact:
+                outputArtifactKey: XtrainOut
+                producerTask: data-preprocessing
+            Ytrain:
+              taskOutputArtifact:
+                outputArtifactKey: YtrainOut
+                producerTask: data-preprocessing
+        taskInfo:
+          name: train-model
+  inputDefinitions:
+    parameters:
+      dvc_path:
+        parameterType: STRING
+      dvc_repo_url:
+        parameterType: STRING
+schemaVersion: 2.1.0
+sdkVersion: kfp-2.14.6
