@@ -11,10 +11,8 @@ pipeline {
             steps {
                 echo 'Setting up environment...'
                 
-                // Clean workspace
                 cleanWs()
                 
-                // Checkout code
                 checkout scm
                 
                 script {
@@ -87,10 +85,10 @@ pipeline {
                             
                             echo "Verifying pipeline.yaml exists..."
                             if exist pipeline.yaml (
-                                echo ✓ pipeline.yaml generated successfully
+                                echo pipeline.yaml generated successfully
                                 dir pipeline.yaml
                             ) else (
-                                echo ✗ pipeline.yaml not found
+                                echo pipeline.yaml not found
                                 exit /b 1
                             )
                         '''

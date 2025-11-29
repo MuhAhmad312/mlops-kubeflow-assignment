@@ -28,10 +28,9 @@ mlops-kubeflow-assignment/
 ├── metrics/                      # Model evaluation metrics
 ├── .github/
 │   └── workflows/
-│       └── ci.yml               # GitHub Actions workflow
+│       └── main.yml               # GitHub Actions workflow
 ├── pipeline.py                   # Main Kubeflow pipeline definition
 ├── requirements.txt              # Python dependencies
-├── Dockerfile                    # Docker image for components
 ├── Jenkinsfile                   # Jenkins CI/CD pipeline
 ├── .gitignore                    # Git ignore rules
 └── README.md                     # This file
@@ -51,7 +50,7 @@ mlops-kubeflow-assignment/
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/yourusername/mlops-kubeflow-assignment.git
+git clone https://github.com/MuhAhmad312/mlops-kubeflow-assignment.git
 cd mlops-kubeflow-assignment
 ```
 
